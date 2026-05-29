@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Diamond Signal Lab | Baseball Player Analytics</title>
+  <meta name="description" content="Interactive batting analytics dashboard with performance scores, breakout signals, and player cards." />
+  <link rel="stylesheet" href="src/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Diamond Signal Lab</p>
+        <h1>Baseball Player Analytics Platform</h1>
+        <p class="hero-copy">Search hitters, compare advanced metrics, rank player performance, and surface breakout candidates from your uploaded batting data.</p>
+      </div>
+      <div class="hero-actions">
+        <label class="upload-card" for="csvUpload">
+          <span>Upload updated CSV</span>
+          <small>Drag/export from Excel as .csv</small>
+          <input id="csvUpload" type="file" accept=".csv,text/csv" />
+        </label>
+        <button id="resetDataBtn" class="ghost-button" type="button">Reset to included data</button>
+      </div>
+    </header>
+
+    <section class="control-panel" aria-label="Global filters">
+      <div class="control-group wide">
+        <label for="searchInput">Search player</label>
+        <input id="searchInput" type="search" placeholder="Type a player name..." />
+      </div>
+      <div class="control-group">
+        <label for="minABInput">Qualifier AB</label>
+        <input id="minABInput" type="number" min="0" step="1" value="100" />
+      </div>
+      <div class="control-group">
+        <label for="sortSelect">Sort players by</label>
+        <select id="sortSelect"></select>
+      </div>
+      <div class="control-group">
+        <label for="viewCountSelect">Cards shown</label>
+        <select id="viewCountSelect">
+          <option value="12">12</option>
+          <option value="24" selected>24</option>
+          <option value="48">48</option>
+          <option value="9999">All</option>
+        </select>
+      </div>
+      <div class="control-actions">
+        <button id="downloadScoresBtn" type="button">Download scored CSV</button>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Analytics tabs">
+      <button class="tab active" data-tab="dashboard" type="button">Dashboard</button>
+      <button class="tab" data-tab="performance" type="button">Player Performance</button>
+      <button class="tab" data-tab="breakout" type="button">Breakout Finder</button>
+      <button class="tab" data-tab="explorer" type="button">Metric Explorer</button>
+      <button class="tab" data-tab="methodology" type="button">Methodology</button>
+    </nav>
+
+    <main>
+      <section id="dashboard" class="tab-panel active">
+        <div id="summaryCards" class="summary-grid"></div>
+        <div class="two-column">
+          <article class="panel-card">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Fast read</p>
+                <h2>Top overall player cards</h2>
+              </div>
+              <span id="dataStatus" class="status-pill">Loading...</span>
+            </div>
+            <div id="playerCards" class="card-grid"></div>
+          </article>
+          <aside class="panel-card sticky-card">
+            <p class="eyebrow">What to watch</p>
+            <h2>Signal board</h2>
+            <div id="signalBoard" class="signal-board"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="performance" class="tab-panel">
+        <div class="panel-card">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Composite ranking</p>
+              <h2>Player Performance Score</h2>
+              <p class="muted">A 0-100 percentile-style score combining current production, expected stats, quality of contact, plate discipline, and running value.</p>
+            </div>
+            <button id="performanceHelpBtn" class="ghost-button small" type="button">Scoring details</button>
+          </div>
+          <div id="performanceTable" class="table-wrap"></div>
+        </div>
+      </section>
+
+      <section id="breakout" class="tab-panel">
+        <div class="panel-card">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Buy-low / breakout analysis</p>
+              <h2>Breakout Finder</h2>
+              <p class="muted">Targets hitters whose expected stats and contact quality are better than their surface results. Higher scores are not guarantees; they are signal stacks worth deeper review.</p>
+            </div>
+            <div class="legend">
+              <span><i class="dot good"></i> Positive regression</span>
+              <span><i class="dot caution"></i> Risk flag</span>
+            </div>
+          </div>
+          <div id="breakoutCards" class="breakout-grid"></div>
+        </div>
+      </section>
+
+      <section id="explorer" class="tab-panel">
+        <div class="panel-card">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Metric explorer</p>
+              <h2>Rank any metric</h2>
+              <p class="muted">Choose a metric from your data and compare qualified players. Bars are scaled to the top value in the current qualified pool.</p>
+            </div>
+            <div class="control-group compact">
+              <label for="metricSelect">Metric</label>
+              <select id="metricSelect"></select>
+            </div>
+          </div>
+          <div id="metricChart" class="bar-chart"></div>
+        </div>
+      </section>
+
+      <section id="methodology" class="tab-panel">
+        <div class="method-grid">
+          <article class="panel-card">
+            <p class="eyebrow">Model logic</p>
+            <h2>How the scores work</h2>
+            <div class="method-copy">
+              <p><strong>Qualifier:</strong> The default is 100 AB, matching your setup. You can change it in the top filter.</p>
+              <p><strong>Normalization:</strong> Every key metric is converted into a within-dataset percentile among qualified hitters. Lower-is-better stats such as K%, whiff%, and chase rate are inverted.</p>
+              <p><strong>Performance Score:</strong> Current production is the largest piece, but the score also uses expected stats, contact quality, discipline, and speed so it is not only a batting-average leaderboard.</p>
+              <p><strong>Breakout Score:</strong> Looks for positive gaps such as xwOBA &gt; wOBA, xSLG &gt; SLG, xBA &gt; AVG, low BABIP with strong expected stats, high hard-hit/barrel rates, and acceptable plate discipline. It penalizes players who are already greatly overperforming their expected stats.</p>
+              <p><strong>Small-sample control:</strong> Scores include an opportunity/reliability factor based on PA. With only early-season data, use the score as a ranking signal, not a prediction guarantee.</p>
+            </div>
+          </article>
+          <article class="panel-card">
+            <p class="eyebrow">Weights</p>
+            <h2>Default model weights</h2>
+            <div class="weights-list">
+              <div><span>Production</span><b>52%</b></div>
+              <div><span>Contact quality</span><b>25%</b></div>
+              <div><span>Plate discipline</span><b>15%</b></div>
+              <div><span>Speed / baserunning</span><b>8%</b></div>
+            </div>
+            <p class="muted">Breakout scoring is more forward-looking: expected-stat gaps, contact quality, expected skill, approach quality, and opportunity get the heaviest emphasis.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="playerDialog" class="player-dialog">
+    <button id="closeDialogBtn" class="dialog-close" type="button" aria-label="Close">×</button>
+    <div id="dialogContent"></div>
+  </dialog>
+
+  <script src="src/embeddedData.js"></script>
+  <script src="src/app.js"></script>
+</body>
+</html>

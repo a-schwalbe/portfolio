@@ -1,0 +1,10 @@
+{
+  "name": "diamond-signal-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static baseball batting analytics web app with player performance and breakout scoring.",
+  "scripts": {
+    "start": "python serve.py",
+    "embed:data": "python tools/regenerate_embedded_data.py"
+  }
+}
