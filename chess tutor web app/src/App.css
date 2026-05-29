@@ -1,0 +1,39 @@
+body {
+  background: linear-gradient(135deg, #f8f3e7 0%, #e8dcc2 45%, #d8c6a3 100%);
+  min-height: 100vh;
+}
+
+.app-navbar {
+  background: linear-gradient(90deg, #302621, #5a381e);
+}
+
+.app-navbar .navbar-brand,
+.app-navbar .nav-link {
+  color: #ffffff !important;
+}
+
+.app-navbar .nav-link:hover,
+.app-navbar .navbar-brand:hover {
+  color: #f8d98b !important;
+}
+
+.chess-card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(90, 56, 30, 0.15);
+}
+
+.accent-text {
+  color: #7a4a1d;
+}
+
+.btn-chess {
+  background-color: #7a4a1d;
+  border-color: #7a4a1d;
+  color: white;
+}
+
+.btn-chess:hover {
+  background-color: #5a381e;
+  border-color: #5a381e;
+  color: white;
+}
