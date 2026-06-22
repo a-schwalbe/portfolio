@@ -5,6 +5,9 @@
   "description": "Static baseball batting analytics web app with player performance and breakout scoring.",
   "scripts": {
     "start": "python serve.py",
-    "embed:data": "python tools/regenerate_embedded_data.py"
+    "embed:data": "python tools/regenerate_embedded_data.py",
+    "import:savant": "python tools/import_savant_export.py",
+    "fetch:savant": "python tools/fetch_savant_leaderboard.py",
+    "fetch:savant:dry": "python tools/fetch_savant_leaderboard.py --dry-run"
   }
 }

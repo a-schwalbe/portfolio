@@ -127,3 +127,30 @@ Import the repository as a static project. `vercel.json` is included.
 ## Important limitation
 
 The model only knows what is in the CSV. It does not automatically know injuries, depth-chart changes, lineup changes, park/weather context, or news. Those can be added later as additional columns or with a backend/API layer.
+
+## Automatic Baseball Savant refresh
+
+This version includes a scheduled-refresh pipeline for the Baseball Savant Custom Leaderboard URL in `config/savant_leaderboard_url.txt`.
+
+Test it locally:
+
+```bash
+python tools/fetch_savant_leaderboard.py --dry-run
+```
+
+Run the update locally:
+
+```bash
+python tools/fetch_savant_leaderboard.py
+```
+
+Or with npm:
+
+```bash
+npm run fetch:savant:dry
+npm run fetch:savant
+```
+
+For GitHub-hosted projects, `.github/workflows/update-savant-data.yml` runs the fetcher every morning and commits updated data when the leaderboard changes.
+
+More detail: `docs/automatic-savant-refresh.md`.

@@ -1,0 +1,31 @@
+name: Update Baseball Savant Data
+
+on:
+  # GitHub cron uses UTC. 11:00 UTC is 7:00 AM Eastern during daylight saving time.
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch latest Baseball Savant leaderboard CSV
+        run: python tools/fetch_savant_leaderboard.py
+
+      - name: Commit updated data if changed
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update Baseball Savant leaderboard data"
+          file_pattern: data/stats.csv data/last_updated.json src/embeddedData.js
