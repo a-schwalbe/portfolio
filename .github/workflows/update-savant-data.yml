@@ -1,17 +1,25 @@
 name: Update Baseball Savant Data
 
 on:
-  # GitHub cron uses UTC. 11:00 UTC is 7:00 AM Eastern during daylight saving time.
-  schedule:
-    - cron: "0 11 * * *"
   workflow_dispatch:
+  schedule:
+    - cron: "5 8 * * *"
+      timezone: "America/New_York"
 
 permissions:
   contents: write
 
+concurrency:
+  group: update-baseball-savant-data
+  cancel-in-progress: true
+
 jobs:
   update-data:
     runs-on: ubuntu-latest
+
+    env:
+      APP_DIR: baseball-analytics-platform
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -21,11 +29,68 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Fetch latest Baseball Savant leaderboard CSV
+      - name: Install Python dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: python -m pip install --upgrade certifi
+
+      - name: Fetch latest Baseball Savant data
+        working-directory: ${{ env.APP_DIR }}
         run: python tools/fetch_savant_leaderboard.py
 
+      - name: Validate imported CSV
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          python - <<'PY'
+          import csv
+
+          with open("data/stats.csv", encoding="utf-8-sig", newline="") as f:
+              rows = list(csv.DictReader(f))
+
+          if not rows:
+              raise SystemExit("No rows found in data/stats.csv")
+
+          required = [
+              "last_name, first_name",
+              "player_id",
+              "year",
+              "player_age",
+              "ab",
+              "pa",
+              "hit",
+              "xwoba",
+          ]
+
+          missing = [c for c in required if c not in rows[0]]
+          if missing:
+              raise SystemExit(f"Missing expected columns: {missing}")
+
+          bad_pa = []
+          for row in rows:
+              pa = int(float(row.get("pa") or 0))
+              ab = int(float(row.get("ab") or 0))
+              if pa < ab:
+                  bad_pa.append(row.get("last_name, first_name", "Unknown"))
+
+          if bad_pa:
+              raise SystemExit(f"Found rows where PA < AB: {bad_pa[:10]}")
+
+          print("CSV validation passed.")
+          print("Rows:", len(rows))
+          print("First row:", {k: rows[0].get(k) for k in required})
+          PY
+
       - name: Commit updated data if changed
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "Update Baseball Savant leaderboard data"
-          file_pattern: data/stats.csv data/last_updated.json src/embeddedData.js
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add "${APP_DIR}/data/stats.csv" \
+                  "${APP_DIR}/data/last_updated.json" \
+                  "${APP_DIR}/src/embeddedData.js"
+
+          if git diff --cached --quiet; then
+            echo "No data changes to commit."
+          else
+            git commit -m "Update Baseball Savant leaderboard data"
+            git push
+          fi
