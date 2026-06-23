@@ -1,3 +1,10 @@
+const LIVE_DATA_BASE_URL =
+  "https://raw.githubusercontent.com/a-schwalbe/portfolio/main/baseball-analytics-platform";
+
+const LIVE_STATS_CSV_URL = `${LIVE_DATA_BASE_URL}/data/stats.csv`;
+const LIVE_METADATA_URL = `${LIVE_DATA_BASE_URL}/data/last_updated.json`;
+const AUTO_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+
 const state = {
   rawRows: [],
   columns: [],
@@ -679,20 +686,50 @@ function downloadScores() {
 }
 
 
+function cacheBustedUrl(url) {
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}t=${Date.now()}`;
+}
+
+async function fetchTextNoStore(url) {
+  const response = await fetch(cacheBustedUrl(url), {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  }
+
+  return response.text();
+}
+
+async function fetchJsonNoStore(url) {
+  const response = await fetch(cacheBustedUrl(url), {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 async function loadStatsMetadata() {
   try {
-    const response = await fetch(`data/last_updated.json?t=${Date.now()}`, {
-      cache: "no-store",
-    });
-
-    if (!response.ok) {
-      state.statsMetadata = null;
-      return;
-    }
-
-    state.statsMetadata = await response.json();
+    state.statsMetadata = await fetchJsonNoStore(LIVE_METADATA_URL);
+    return;
   } catch (err) {
-    console.warn("Could not load stats update metadata:", err);
+    console.warn(
+      "Could not load live GitHub stats metadata. Falling back to deployed metadata.",
+      err
+    );
+  }
+
+  try {
+    state.statsMetadata = await fetchJsonNoStore("data/last_updated.json");
+  } catch (err) {
+    console.warn("Could not load deployed stats metadata:", err);
     state.statsMetadata = null;
   }
 }
@@ -758,7 +795,6 @@ function renderStatsFreshness() {
   }
 
   const rowCount = state.statsMetadata?.row_count || state.rawRows.length;
-  const source = state.statsMetadata?.source || "Baseball Savant";
   const utcTime = state.statsMetadata?.last_updated_utc || "";
 
   selectors.statsFreshness.textContent =
@@ -783,15 +819,15 @@ function getStatsMetadataSignature(meta) {
 }
 
 async function fetchPublishedStatsCsv() {
-  const response = await fetch(`data/stats.csv?t=${Date.now()}`, {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch latest stats.csv: ${response.status}`);
+  try {
+    return await fetchTextNoStore(LIVE_STATS_CSV_URL);
+  } catch (err) {
+    console.warn(
+      "Could not fetch live GitHub stats.csv. Falling back to deployed CSV.",
+      err
+    );
+    return fetchTextNoStore("data/stats.csv");
   }
-
-  return response.text();
 }
 
 async function checkForPublishedDataUpdate({ force = false } = {}) {
@@ -824,13 +860,14 @@ async function checkForPublishedDataUpdate({ force = false } = {}) {
   }
 
   try {
-    selectors.dataStatus.textContent = "New published stats detected. Refreshing dashboard...";
+    selectors.dataStatus.textContent =
+      "New published stats detected. Refreshing dashboard...";
 
     const latestCsv = await fetchPublishedStatsCsv();
 
     state.statsMetadataSignature = nextSignature;
 
-    await setDataFromText(latestCsv, "data/stats.csv");
+    await setDataFromText(latestCsv, "live GitHub Baseball Savant stats.csv");
 
     renderStatsFreshness();
 
@@ -847,7 +884,7 @@ function startPublishedDataAutoRefresh() {
 
   state.autoRefreshTimer = setInterval(() => {
     checkForPublishedDataUpdate();
-  }, 5 * 60 * 1000);
+  }, AUTO_REFRESH_INTERVAL_MS);
 
   window.addEventListener("focus", () => {
     checkForPublishedDataUpdate();
@@ -868,20 +905,33 @@ function csvEscape(value) {
 }
 
 async function loadInitialData() {
-  let text = localStorage.getItem("diamondSignalCSV");
-  if (text) {
+  const saved = localStorage.getItem("diamondSignalCSV");
+
+  if (saved) {
     state.sourceName = "browser-saved uploaded CSV";
-    return text;
+    return saved;
   }
 
   try {
-    const response = await fetch("data/stats.csv", { cache: "no-store" });
-    if (response.ok) {
-      state.sourceName = "data/stats.csv";
-      return await response.text();
-    }
+    const liveCsv = await fetchTextNoStore(LIVE_STATS_CSV_URL);
+    state.sourceName = "live GitHub Baseball Savant stats.csv";
+    return liveCsv;
   } catch (err) {
-    // File opened directly from disk; embedded fallback keeps the app usable.
+    console.warn(
+      "Could not load live GitHub stats.csv. Falling back to deployed CSV.",
+      err
+    );
+  }
+
+  try {
+    const deployedCsv = await fetchTextNoStore("data/stats.csv");
+    state.sourceName = "deployed stats.csv fallback";
+    return deployedCsv;
+  } catch (err) {
+    console.warn(
+      "Could not load deployed stats.csv. Falling back to embedded CSV.",
+      err
+    );
   }
 
   state.sourceName = "included embedded stats.csv";
