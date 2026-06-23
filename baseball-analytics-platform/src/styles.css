@@ -419,3 +419,23 @@ tr:hover td { background: rgba(255,255,255,.035); }
   .chart-row { grid-template-columns: 1fr; gap: 6px; }
   .chart-value { text-align: left; }
 }
+
+.stats-freshness {
+  margin: 14px 0 24px;
+  padding: 12px 18px;
+  border: 1px solid rgba(95, 224, 194, 0.28);
+  border-radius: 14px;
+  background: rgba(7, 29, 34, 0.82);
+  color: #c9fff3;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+@media (max-width: 700px) {
+  .stats-freshness {
+    margin-top: 0;
+    font-size: 0.84rem;
+  }
+}

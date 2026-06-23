@@ -5,6 +5,7 @@ const state = {
   qualified: [],
   activeTab: "dashboard",
   sourceName: "included stats.csv",
+  statsMetadata: null,
 };
 
 const selectors = {
@@ -16,6 +17,7 @@ const selectors = {
   resetDataBtn: document.getElementById("resetDataBtn"),
   downloadScoresBtn: document.getElementById("downloadScoresBtn"),
   dataStatus: document.getElementById("dataStatus"),
+  statsFreshness: document.getElementById("statsFreshness"),
   summaryCards: document.getElementById("summaryCards"),
   playerCards: document.getElementById("playerCards"),
   signalBoard: document.getElementById("signalBoard"),
@@ -410,7 +412,13 @@ function getVisiblePlayers() {
 }
 
 function render() {
-  selectors.dataStatus.textContent = `${state.qualified.length} qualified / ${state.rawRows.length} total · ${state.sourceName}`;
+  const updatedShort = formatStatsUpdatedShort();
+  const updateText = updatedShort ? ` · Updated ${updatedShort}` : "";
+
+  selectors.dataStatus.textContent =
+    `${state.qualified.length} qualified / ${state.rawRows.length} total · ${state.sourceName}${updateText}`;
+
+  renderStatsFreshness();
   renderSummary();
   renderDashboardCards();
   renderSignalBoard();
@@ -668,6 +676,97 @@ function downloadScores() {
   URL.revokeObjectURL(url);
 }
 
+
+async function loadStatsMetadata() {
+  try {
+    const response = await fetch(`data/last_updated.json?t=${Date.now()}`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      state.statsMetadata = null;
+      return;
+    }
+
+    state.statsMetadata = await response.json();
+  } catch (err) {
+    console.warn("Could not load stats update metadata:", err);
+    state.statsMetadata = null;
+  }
+}
+
+function getStatsUpdatedDate() {
+  const rawTime = state.statsMetadata?.last_updated_utc;
+  if (!rawTime) return null;
+
+  const updatedDate = new Date(rawTime);
+  if (Number.isNaN(updatedDate.getTime())) return null;
+
+  return updatedDate;
+}
+
+function formatStatsUpdatedLong() {
+  const updatedDate = getStatsUpdatedDate();
+  if (!updatedDate) return "";
+
+  return updatedDate.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+function formatStatsUpdatedShort() {
+  const updatedDate = getStatsUpdatedDate();
+  if (!updatedDate) return "";
+
+  return updatedDate.toLocaleString("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+}
+
+function renderStatsFreshness() {
+  if (!selectors.statsFreshness) return;
+
+  if (localStorage.getItem("diamondSignalCSV")) {
+    selectors.statsFreshness.textContent =
+      "Using browser-saved uploaded CSV. Click Reset to included data to use the latest published Savant refresh.";
+    selectors.statsFreshness.title = "";
+    return;
+  }
+
+  const longTime = formatStatsUpdatedLong();
+
+  if (!longTime) {
+    selectors.statsFreshness.textContent =
+      "Stats freshness unavailable. Data is loaded from the current published CSV.";
+    selectors.statsFreshness.title = "";
+    return;
+  }
+
+  const rowCount = state.statsMetadata?.row_count || state.rawRows.length;
+  const source = state.statsMetadata?.source || "Baseball Savant";
+  const utcTime = state.statsMetadata?.last_updated_utc || "";
+
+  selectors.statsFreshness.textContent =
+    `Latest Baseball Savant refresh: ${longTime} · ${rowCount} players`;
+
+  selectors.statsFreshness.title = utcTime
+    ? `Exact UTC refresh time: ${utcTime}`
+    : "";
+}
+
 function csvEscape(value) {
   if (value === null || value === undefined) return "";
   const s = String(value);
@@ -734,20 +833,24 @@ function bindEvents() {
     reader.onload = () => {
       const text = String(reader.result || "");
       localStorage.setItem("diamondSignalCSV", text);
+      state.statsMetadata = null;
       setDataFromText(text, file.name);
     };
     reader.readAsText(file);
   });
 
-  selectors.resetDataBtn.addEventListener("click", () => {
+  selectors.resetDataBtn.addEventListener("click", async () => {
     localStorage.removeItem("diamondSignalCSV");
-    setDataFromText(window.DEFAULT_BATTING_CSV || "", "included embedded stats.csv");
+    await loadStatsMetadata();
+    const text = await loadInitialData();
+    await setDataFromText(text, state.sourceName);
   });
 }
 
 async function init() {
   populateSelects();
   bindEvents();
+  await loadStatsMetadata();
   const text = await loadInitialData();
   await setDataFromText(text, state.sourceName);
 }
