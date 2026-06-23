@@ -3,7 +3,7 @@ name: Update Baseball Savant Data
 on:
   workflow_dispatch:
   schedule:
-    - cron: "5 8 * * *"
+    - cron: "7 12-23,0,2 * * *"
       timezone: "America/New_York"
 
 permissions:
