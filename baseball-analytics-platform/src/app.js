@@ -6,6 +6,8 @@ const state = {
   activeTab: "dashboard",
   sourceName: "included stats.csv",
   statsMetadata: null,
+  statsMetadataSignature: null,
+  autoRefreshTimer: null,
 };
 
 const selectors = {
@@ -767,6 +769,97 @@ function renderStatsFreshness() {
     : "";
 }
 
+function getStatsMetadataSignature(meta) {
+  if (!meta) return "";
+
+  return [
+    meta.last_updated_utc,
+    meta.row_count,
+    meta.column_count,
+    meta.fetch_method,
+  ]
+    .filter(Boolean)
+    .join("|");
+}
+
+async function fetchPublishedStatsCsv() {
+  const response = await fetch(`data/stats.csv?t=${Date.now()}`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch latest stats.csv: ${response.status}`);
+  }
+
+  return response.text();
+}
+
+async function checkForPublishedDataUpdate({ force = false } = {}) {
+  // Do not overwrite a user's manually uploaded CSV.
+  if (localStorage.getItem("diamondSignalCSV")) {
+    return;
+  }
+
+  const previousSignature = state.statsMetadataSignature;
+
+  await loadStatsMetadata();
+
+  const nextSignature = getStatsMetadataSignature(state.statsMetadata);
+
+  if (!nextSignature) {
+    return;
+  }
+
+  if (!state.statsMetadataSignature) {
+    state.statsMetadataSignature = nextSignature;
+    renderStatsFreshness();
+    return;
+  }
+
+  const hasChanged = previousSignature && previousSignature !== nextSignature;
+
+  if (!force && !hasChanged) {
+    renderStatsFreshness();
+    return;
+  }
+
+  try {
+    selectors.dataStatus.textContent = "New published stats detected. Refreshing dashboard...";
+
+    const latestCsv = await fetchPublishedStatsCsv();
+
+    state.statsMetadataSignature = nextSignature;
+
+    await setDataFromText(latestCsv, "data/stats.csv");
+
+    renderStatsFreshness();
+
+    console.info("Published Baseball Savant stats refreshed in open tab.");
+  } catch (err) {
+    console.warn("Could not refresh published stats in open tab:", err);
+  }
+}
+
+function startPublishedDataAutoRefresh() {
+  if (state.autoRefreshTimer) {
+    clearInterval(state.autoRefreshTimer);
+  }
+
+  state.autoRefreshTimer = setInterval(() => {
+    checkForPublishedDataUpdate();
+  }, 5 * 60 * 1000);
+
+  window.addEventListener("focus", () => {
+    checkForPublishedDataUpdate();
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      checkForPublishedDataUpdate();
+    }
+  });
+}
+
 function csvEscape(value) {
   if (value === null || value === undefined) return "";
   const s = String(value);
@@ -841,18 +934,28 @@ function bindEvents() {
 
   selectors.resetDataBtn.addEventListener("click", async () => {
     localStorage.removeItem("diamondSignalCSV");
+
     await loadStatsMetadata();
+    state.statsMetadataSignature = getStatsMetadataSignature(state.statsMetadata);
+
     const text = await loadInitialData();
     await setDataFromText(text, state.sourceName);
+
+    await checkForPublishedDataUpdate({ force: true });
   });
 }
 
 async function init() {
   populateSelects();
   bindEvents();
+
   await loadStatsMetadata();
+  state.statsMetadataSignature = getStatsMetadataSignature(state.statsMetadata);
+
   const text = await loadInitialData();
   await setDataFromText(text, state.sourceName);
+
+  startPublishedDataAutoRefresh();
 }
 
 init();
