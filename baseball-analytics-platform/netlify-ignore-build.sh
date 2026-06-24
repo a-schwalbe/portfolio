@@ -17,7 +17,10 @@ if [ "$CACHED_COMMIT_REF" = "$COMMIT_REF" ]; then
   exit 1
 fi
 
-if git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- .   ':(exclude)data/stats.csv'   ':(exclude)data/last_updated.json'   ':(exclude)src/embeddedData.js'; then
+if git diff --quiet "$CACHED_COMMIT_REF" "$COMMIT_REF" -- . \
+  ':(exclude)data/stats.csv' \
+  ':(exclude)data/last_updated.json' \
+  ':(exclude)src/embeddedData.js'; then
   echo "Only data files changed. Skipping Netlify build."
   exit 0
 else
